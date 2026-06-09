@@ -9,8 +9,7 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
-
-#streamlit run src/app.py
+#comando para rodar -- streamlit run src/app.py
 # Importando suas ferramentas existentes.
 from tools import verify_client_by_cpf, get_client_history, run_diagnostic_step, open_support_ticket
 
@@ -102,7 +101,7 @@ if user_input:
     # Mostra um "digitando..." enquanto o modelo processa
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        message_placeholder.markdown("⏳ *Pensando...*")
+        message_placeholder.markdown("digitando...")
         
         try:
             response = invoke_with_retry_streamlit(agent, user_input, config)
