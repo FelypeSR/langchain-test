@@ -11,7 +11,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 #streamlit run src/app.py
-# Importando suas ferramentas existentes
+# Importando suas ferramentas existentes.
 from tools import verify_client_by_cpf, get_client_history, run_diagnostic_step, open_support_ticket
 
 # Configurações iniciais
