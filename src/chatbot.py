@@ -1,30 +1,30 @@
 import os
 import time
 from dotenv import load_dotenv
-from groq import (
+from openai import (
     APIConnectionError,
     BadRequestError,
     InternalServerError,
     RateLimitError,
 )
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from tools import verify_client_by_cpf, get_client_history, run_diagnostic_step, open_support_ticket
 
-# Os modelos da Groq ocasionalmente emitem uma tool call malformada e o
-# servidor responde 400 com code 'tool_use_failed'. É intermitente — uma nova
-# tentativa quase sempre resolve. Quantas vezes reenviar antes de desistir.
+# O modelo ocasionalmente pode emitir uma tool call malformada e a API
+# responder 400. É intermitente — uma nova tentativa quase sempre resolve.
+# Quantas vezes reenviar antes de desistir.
 MAX_TOOL_RETRIES = 3
 
-# Erros transitórios de rede/servidor (conexão caída, timeout, 5xx). O SDK do
-# Groq já repete internamente (max_retries), mas se ele esgotar nós tentamos
+# Erros transitórios de rede/servidor (conexão caída, timeout, 5xx). O SDK da
+# OpenAI já repete internamente (max_retries), mas se ele esgotar nós tentamos
 # mais algumas vezes com backoff antes de desistir, em vez de derrubar a sessão.
 MAX_NETWORK_RETRIES = 3
 NETWORK_BACKOFF_SECONDS = 2
 
-# Carrega GROQ_API_KEY do arquivo .env
+# Carrega OPENAI_API_KEY do arquivo .env
 load_dotenv(os.path.join(os.path.dirname(__file__), "../config/.env"))
 
 # Lê o support.md como system prompt — ele define identidade, fluxo de triagem,
@@ -47,8 +47,8 @@ def main():
     # default do SDK costuma ser curto demais quando o modelo demora a gerar).
     # max_retries: o próprio SDK reenvia em erros de conexão/timeout/5xx/429
     # com backoff exponencial — é a primeira linha de defesa contra rede instável.
-    llm = ChatGroq(
-        model="llama-3.3-70b-versatile",
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
         temperature=0.2,
         timeout=60,
         max_retries=3,
@@ -86,14 +86,14 @@ def main():
 
         # Envia a mensagem do usuário ao agente; ele retorna a lista completa
         # de mensagens da sessão — pegamos apenas a última (resposta do assistente).
-        # Reenviamos em caso de tool call malformada (tool_use_failed do Groq).
+        # Reenviamos em caso de tool call malformada retornada pela API.
         try:
             response = invoke_with_retry(agent, user_input, config)
         except RateLimitError as e:
-            # Limite de tokens da Groq atingido (ex.: cota diária do free tier).
-            # Não adianta reenviar — informamos e mantemos a sessão viva.
+            # Limite de uso/cota da OpenAI atingido. Não adianta reenviar —
+            # informamos e mantemos a sessão viva.
             print(
-                "Assistente: Atingi o limite de uso da API da Groq agora. "
+                "Assistente: Atingi o limite de uso da API da OpenAI agora. "
                 f"{_rate_limit_hint(e)}\n"
             )
             continue
@@ -110,7 +110,7 @@ def main():
 
 
 def _rate_limit_hint(error):
-    """Extrai a sugestão de quando tentar de novo da mensagem de erro da Groq."""
+    """Extrai a sugestão de quando tentar de novo da mensagem de erro da OpenAI."""
     message = getattr(getattr(error, "body", None), "get", lambda *_: None)("message") \
         if isinstance(getattr(error, "body", None), dict) else None
     if not message:
@@ -118,15 +118,15 @@ def _rate_limit_hint(error):
     if "try again in" in message:
         wait = message.split("try again in", 1)[1].split(".", 1)[0].strip()
         return f"Tente novamente em {wait}."
-    return "Tente novamente mais tarde ou troque para um modelo menor (ex.: llama-3.1-8b-instant)."
+    return "Tente novamente mais tarde ou troque para um modelo menor (ex.: gpt-4o-mini)."
 
 
 def invoke_with_retry(agent, user_input, config):
-    """Invoca o agente reenviando em falhas intermitentes do Groq.
+    """Invoca o agente reenviando em falhas intermitentes da OpenAI.
 
     Trata dois tipos de falha transitória:
-      - tool_use_failed (BadRequestError 400): tool call malformada — reenvia
-        imediatamente, pois quase sempre passa na tentativa seguinte.
+      - tool call malformada (BadRequestError 400): reenvia imediatamente,
+        pois quase sempre passa na tentativa seguinte.
       - rede/servidor (APIConnectionError, que inclui APITimeoutError, e
         InternalServerError 5xx): reenvia com backoff. RateLimitError (429) NÃO
         é tratado aqui — sobe para o main(), que avisa o usuário.

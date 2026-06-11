@@ -4,8 +4,8 @@ import uuid
 import re
 import streamlit as st
 from dotenv import load_dotenv
-from groq import APIConnectionError, BadRequestError, InternalServerError, RateLimitError
-from langchain_groq import ChatGroq
+from openai import APIConnectionError, BadRequestError, InternalServerError, RateLimitError
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
@@ -28,8 +28,8 @@ st.title("💬 Assistente de Suporte")
 # Função para inicializar o agente apenas uma vez por sessão
 @st.cache_resource
 def get_agent():
-    llm = ChatGroq(
-        model="llama-3.3-70b-versatile",
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
         temperature=0.2,
         timeout=60,
         max_retries=3,
@@ -108,7 +108,7 @@ if user_input:
             if response:
                 bot_reply = response["messages"][-1].content
                 
-                # --- LINHA NOVA: Limpa tags de função vazadas do Llama 3 ---
+                # --- Limpa eventuais tags de função vazadas no texto ---
                 bot_reply = re.sub(r'<function.*?>.*?</function>', '', bot_reply, flags=re.DOTALL).strip()
                 # ------------------------------------------------------------
                 
@@ -122,6 +122,6 @@ if user_input:
                 st.session_state.messages.append({"role": "assistant", "content": error_msg})
                 
         except RateLimitError:
-            rate_limit_msg = "Atingi o limite de uso da API da Groq agora. Tente novamente em alguns instantes."
+            rate_limit_msg = "Atingi o limite de uso da API da OpenAI agora. Tente novamente em alguns instantes."
             message_placeholder.markdown(rate_limit_msg)
             st.session_state.messages.append({"role": "assistant", "content": rate_limit_msg})
