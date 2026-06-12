@@ -1,6 +1,4 @@
-import os
 import time
-from dotenv import load_dotenv
 from openai import (
     APIConnectionError,
     BadRequestError,
@@ -9,9 +7,9 @@ from openai import (
 )
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
-from tools import verify_client_by_cpf, get_client_history, run_diagnostic_step, open_support_ticket
+from bot_context import SYSTEM_PROMPT, TOOLS
 
 # O modelo ocasionalmente pode emitir uma tool call malformada e a API
 # responder 400. É intermitente — uma nova tentativa quase sempre resolve.
@@ -24,22 +22,8 @@ MAX_TOOL_RETRIES = 3
 MAX_NETWORK_RETRIES = 3
 NETWORK_BACKOFF_SECONDS = 2
 
-# Carrega OPENAI_API_KEY do arquivo .env
-load_dotenv(os.path.join(os.path.dirname(__file__), "../config/.env"))
-
-# Lê o support.md como system prompt — ele define identidade, fluxo de triagem,
-# regras de uso das ferramentas e exemplos de diálogo
-SUPPORT_MD_PATH = os.path.join(os.path.dirname(__file__), "../support.md")
-with open(SUPPORT_MD_PATH, encoding="utf-8") as f:
-    SYSTEM_PROMPT = f.read()
-
-# Ferramentas disponíveis para o agente, conforme definido no support.md
-TOOLS = [
-    verify_client_by_cpf,   # Fase 1 — triagem: valida CPF do cliente
-    get_client_history,      # Fase 2 — diagnóstico: histórico de chamados
-    run_diagnostic_step,     # Fase 2 — diagnóstico: próximo passo da árvore de decisão
-    open_support_ticket,     # Escalada: abre chamado para suporte ou vendas
-]
+# SYSTEM_PROMPT (system prompt do support.md), TOOLS e o carregamento do .env
+# ficam centralizados em bot_context.py — ver import no topo.
 
 
 def main():
@@ -58,12 +42,12 @@ def main():
     # permitindo que o agente acesse turnos anteriores via thread_id
     memory = MemorySaver()
 
-    # create_react_agent cria um agente ReAct com LangGraph:
+    # create_agent cria um agente ReAct com LangChain/LangGraph:
     # o LLM decide dinamicamente quando e qual ferramenta chamar a cada turno
-    agent = create_react_agent(
+    agent = create_agent(
         model=llm,
         tools=TOOLS,
-        prompt=SYSTEM_PROMPT,
+        system_prompt=SYSTEM_PROMPT,
         checkpointer=memory,
     )
 

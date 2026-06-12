@@ -1,25 +1,15 @@
-import os
 import time
 import uuid
 import re
 import streamlit as st
-from dotenv import load_dotenv
 from openai import APIConnectionError, BadRequestError, InternalServerError, RateLimitError
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 #comando para rodar -- streamlit run src/app.py
-# Importando suas ferramentas existentes.
-from tools import verify_client_by_cpf, get_client_history, run_diagnostic_step, open_support_ticket
-
-# Configurações iniciais
-load_dotenv(os.path.join(os.path.dirname(__file__), "../config/.env"))
-SUPPORT_MD_PATH = os.path.join(os.path.dirname(__file__), "../support.md")
-with open(SUPPORT_MD_PATH, encoding="utf-8") as f:
-    SYSTEM_PROMPT = f.read()
-
-TOOLS = [verify_client_by_cpf, get_client_history, run_diagnostic_step, open_support_ticket]
+# SYSTEM_PROMPT, TOOLS e o carregamento do .env ficam centralizados em bot_context.py
+from bot_context import SYSTEM_PROMPT, TOOLS
 
 # Configuração da página do Streamlit
 st.set_page_config(page_title="Atendimento de Suporte", page_icon="💬")
@@ -35,7 +25,7 @@ def get_agent():
         max_retries=3,
     )
     memory = MemorySaver()
-    agent = create_react_agent(model=llm, tools=TOOLS, prompt=SYSTEM_PROMPT, checkpointer=memory)
+    agent = create_agent(model=llm, tools=TOOLS, system_prompt=SYSTEM_PROMPT, checkpointer=memory)
     return agent
 
 agent = get_agent()
